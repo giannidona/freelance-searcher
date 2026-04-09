@@ -4,14 +4,14 @@ import os
 import time
 import requests
 from datetime import datetime
-from openai import OpenAI
+import anthropic
 
 # ─────────────────────────────────────────────
 # CONFIGURACIÓN — editá estos valores
 # ─────────────────────────────────────────────
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_CHAT_ID   = os.environ.get("TELEGRAM_CHAT_ID", "")
-OPENAI_API_KEY     = os.environ.get("OPENAI_API_KEY", "")
+ANTHROPIC_API_KEY  = os.environ.get("ANTHROPIC_API_KEY", "")
 SEEN_FILE          = "seen_jobs.json"
 CHECK_INTERVAL     = 60 * 60 * 3  # cada 3 horas
 
@@ -72,9 +72,8 @@ def fetch_jobs(feed_name, url):
         return []
 
 def score_job(job):
-    client = OpenAI(api_key=OPENAI_API_KEY)
-    prompt = f"""
-Evaluá si esta oferta freelance es relevante para el siguiente perfil:
+    client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+    prompt = f"""Evaluá si esta oferta freelance es relevante para el siguiente perfil:
 
 PERFIL:
 {MI_PERFIL}
@@ -84,21 +83,16 @@ Título: {job['title']}
 Fuente: {job['source']}
 Descripción: {job['summary']}
 
-Respondé SOLO con este JSON (sin texto extra):
-{{
-  "score": <número del 1 al 10>,
-  "motivo": "<una línea explicando por qué sí o por qué no>",
-  "presupuesto_ok": <true o false, si el presupuesto parece ser USD 300 o más>
-}}
-"""
+Respondé SOLO con este JSON (sin texto extra, sin backticks):
+{{"score": <número del 1 al 10>, "motivo": "<una línea explicando por qué sí o por qué no>", "presupuesto_ok": <true o false, si el presupuesto parece ser USD 300 o más>}}"""
+
     try:
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",  # el más barato, ~$0.0001 por evaluación
-            messages=[{"role": "user", "content": prompt}],
+        message = client.messages.create(
+            model="claude-haiku-4-5-20251001",  # el más barato y rápido
             max_tokens=150,
-            temperature=0.2,
+            messages=[{"role": "user", "content": prompt}]
         )
-        raw = response.choices[0].message.content.strip()
+        raw = message.content[0].text.strip()
         return json.loads(raw)
     except Exception as e:
         print(f"Error scoring: {e}")
