@@ -16,29 +16,50 @@ SEEN_FILE          = "seen_jobs.json"
 CHECK_INTERVAL     = 60 * 60 * 3  # cada 3 horas
 
 MI_PERFIL = """
-Soy freelancer especializado en:
-- Desarrollo web frontend (HTML, CSS, JavaScript, React)
-- Diseño UI/UX (Figma, diseño de interfaces, experiencia de usuario)
-- WordPress (sitios corporativos, tiendas, landing pages)
-- SEO y marketing digital (on-page, técnico, Google Analytics, campañas)
-Presupuesto mínimo que acepto: USD 300 por proyecto.
-Idiomas: español e inglés.
+Soy freelancer con 3+ años de experiencia especializado en:
+
+SERVICIOS PRINCIPALES:
+- Diseño y desarrollo web completo (HTML, CSS, JavaScript, React)
+- Diseño UI/UX en Figma: wireframes, prototipos, design systems
+- WordPress: sitios corporativos, tiendas WooCommerce, landing pages de alta conversión
+- SEO técnico y on-page: auditorías, optimización, Google Search Console, Analytics
+- Email marketing y funnels de conversión
+
+TIPOS DE PROYECTOS QUE HAGO:
+- Landing pages y funnels para negocios y productos digitales
+- Tiendas ecommerce (WooCommerce, Shopify)
+- Sitios web para negocios locales y profesionales
+- MVPs y frontends para SaaS y apps web
+- Rediseños de sitios existentes con foco en conversión y UX
+
+STACK TÉCNICO:
+- Frontend: HTML5, CSS3, JavaScript ES6+, React, Tailwind CSS
+- CMS: WordPress, Elementor, ACF
+- SEO: Yoast, Ahrefs, Semrush, Core Web Vitals
+- Diseño: Figma, Adobe XD
+
+CONDICIONES:
+- Presupuesto mínimo: USD 300 por proyecto
+- Disponibilidad: proyectos nuevos inmediata
+- Idiomas: español e inglés
+- Zona horaria: UTC-3 (Argentina)
+- Entrega rápida, comunicación clara, revisiones incluidas
 """
 
 # ─────────────────────────────────────────────
 # FUENTES RSS
 # ─────────────────────────────────────────────
 RSS_FEEDS = {
-    "Upwork - Web Design": "https://www.upwork.com/ab/feed/jobs/rss?q=web+design&sort=recency&api_params=1",
-    "Upwork - WordPress":  "https://www.upwork.com/ab/feed/jobs/rss?q=wordpress&sort=recency&api_params=1",
-    "Upwork - SEO":        "https://www.upwork.com/ab/feed/jobs/rss?q=seo&sort=recency&api_params=1",
-    "Upwork - Frontend":   "https://www.upwork.com/ab/feed/jobs/rss?q=frontend+developer&sort=recency&api_params=1",
-    "Freelancer - Web":    "https://www.freelancer.com/rss/job.xml",
-    "RemoteOK - Design":   "https://remoteok.com/remote-design-jobs.rss",
-    "RemoteOK - Frontend": "https://remoteok.com/remote-front-end-jobs.rss",
-    "WeWorkRemotely - Dev":"https://weworkremotely.com/remote-jobs.rss",
-    "Workana - Diseño":    "https://www.workana.com/jobs/rss?category=design-multimedia",
-    "Workana - Web":       "https://www.workana.com/jobs/rss?category=web-programming",
+    "RemoteOK - Design":    "https://remoteok.com/remote-design-jobs.rss",
+    "RemoteOK - Frontend":  "https://remoteok.com/remote-front-end-jobs.rss",
+    "RemoteOK - Marketing": "https://remoteok.com/remote-marketing-jobs.rss",
+    "RemoteOK - SEO":       "https://remoteok.com/remote-seo-jobs.rss",
+    "WeWorkRemotely":       "https://weworkremotely.com/remote-jobs.rss",
+    "Workana - Diseño":     "https://www.workana.com/jobs/rss?category=design-multimedia",
+    "Workana - Web":        "https://www.workana.com/jobs/rss?category=web-programming",
+    "Workana - Marketing":  "https://www.workana.com/jobs/rss?category=sales-marketing",
+    "Jobspresso":           "https://jobspresso.co/feed/",
+    "Landing Jobs":         "https://landing.jobs/feed",
 }
 
 # ─────────────────────────────────────────────
@@ -147,9 +168,11 @@ def run():
             score = evaluation.get("score", 0)
 
             print(f"  [{score}/10] {job['title'][:60]}...")
+            print(f"      → {job['source']} | {job['link'][:60]}")
+
 
             # Solo notificar si score >= 7
-            if score >= 7:
+            if score >= 5:
                 msg = format_message(job, evaluation)
                 send_telegram(msg)
                 nuevos += 1
