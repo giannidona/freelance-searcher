@@ -17,33 +17,40 @@ CHECK_INTERVAL     = 60 * 60 * 3  # cada 3 horas
 SCORE_MINIMO       = 6
 
 MI_PERFIL = """
-Soy freelancer con 3+ años de experiencia especializado en:
+Soy Gianluca Donato, freelancer con base en Buenos Aires, Argentina.
+Trabajo en la intersección entre diseño y desarrollo — puedo llevar
+un proyecto desde el wireframe hasta producción sin depender de un
+equipo externo.
 
 SERVICIOS PRINCIPALES:
-- Diseño y desarrollo web completo (HTML, CSS, JavaScript, React)
-- Diseño UI/UX en Figma: wireframes, prototipos, design systems
-- WordPress: sitios corporativos, tiendas WooCommerce, landing pages de alta conversión
-- SEO técnico y on-page: auditorías, optimización, Google Search Console, Analytics
-- Email marketing y funnels de conversión
+- Desarrollo web completo con Next.js, TypeScript, Tailwind CSS, Supabase
+- Diseño UI/UX: landing pages, ecommerce, dashboards, apps web
+- Integración de IA en productos web para acelerar desarrollo
+- WordPress: sitios corporativos, tiendas, landing pages
+- SEO técnico y on-page
 
-TIPOS DE PROYECTOS QUE HAGO:
-- Landing pages y funnels para negocios y productos digitales
-- Tiendas ecommerce (WooCommerce, Shopify)
-- Sitios web para negocios locales y profesionales
-- MVPs y frontends para SaaS y apps web
-- Rediseños de sitios existentes con foco en conversión y UX
+PROYECTOS REALES ENTREGADOS:
+- Panel de gestión de inventario y analytics para ecommerce en MercadoLibre
+  (Next.js, Supabase, Tailwind — stock, listings, escaneo de código de barras)
+- Ecommerce completo con checkout Mercado Pago y panel de administración
+  (Next.js, Supabase, TypeScript)
+- Catálogo web para marcas pequeñas sin complejidad innecesaria
+- App de inventario de ropa con navegación entre usuarios
 
-STACK TÉCNICO:
-- Frontend: HTML5, CSS3, JavaScript ES6+, React, Tailwind CSS
-- CMS: WordPress, Elementor, ACF
-- SEO: Yoast, Ahrefs, Semrush, Core Web Vitals
-- Diseño: Figma, Adobe XD
+TIPOS DE PROYECTOS QUE BUSCO:
+- Landing pages y funnels de conversión
+- Tiendas ecommerce (WooCommerce, Shopify, custom)
+- Sitios web para negocios, startups y profesionales
+- MVPs y frontends para SaaS
+- Rediseños con foco en conversión y UX
+- Paneles internos y dashboards
 
 CONDICIONES:
 - Presupuesto mínimo: USD 300 por proyecto
 - Disponibilidad: inmediata
 - Idiomas: español e inglés
 - Zona horaria: UTC-3 (Argentina)
+- Trabajo remoto, comunicación clara, entrega en tiempo
 """
 
 # ─────────────────────────────────────────────
