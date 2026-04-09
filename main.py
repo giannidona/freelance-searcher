@@ -54,12 +54,10 @@ RSS_FEEDS = {
     "RemoteOK - Frontend":  "https://remoteok.com/remote-front-end-jobs.rss",
     "RemoteOK - Marketing": "https://remoteok.com/remote-marketing-jobs.rss",
     "RemoteOK - SEO":       "https://remoteok.com/remote-seo-jobs.rss",
-    "WeWorkRemotely":       "https://weworkremotely.com/remote-jobs.rss",
     "Workana - Diseño":     "https://www.workana.com/jobs/rss?category=design-multimedia",
     "Workana - Web":        "https://www.workana.com/jobs/rss?category=web-programming",
     "Workana - Marketing":  "https://www.workana.com/jobs/rss?category=sales-marketing",
     "Jobspresso":           "https://jobspresso.co/feed/",
-    "Landing Jobs":         "https://landing.jobs/feed",
 }
 
 # ─────────────────────────────────────────────
@@ -104,19 +102,24 @@ Título: {job['title']}
 Fuente: {job['source']}
 Descripción: {job['summary']}
 
-Respondé SOLO con este JSON (sin texto extra, sin backticks):
-{{"score": <número del 1 al 10>, "motivo": "<una línea explicando por qué sí o por qué no>", "presupuesto_ok": <true o false, si el presupuesto parece ser USD 300 o más>}}"""
+Respondé SOLO con este JSON en una línea, sin texto antes ni después, sin backticks, sin markdown:
+{{"score": 7, "motivo": "ejemplo", "presupuesto_ok": true}}"""
 
     try:
         message = client.messages.create(
-            model="claude-haiku-4-5-20251001",  # el más barato y rápido
+            model="claude-haiku-4-5-20251001",
             max_tokens=150,
             messages=[{"role": "user", "content": prompt}]
         )
         raw = message.content[0].text.strip()
-        return json.loads(raw)
+        # Extraer JSON aunque venga con texto alrededor
+        start = raw.find("{")
+        end = raw.rfind("}") + 1
+        if start == -1 or end == 0:
+            return {"score": 0, "motivo": "Sin respuesta", "presupuesto_ok": False}
+        return json.loads(raw[start:end])
     except Exception as e:
-        print(f"Error scoring: {e}")
+        print(f"Error scoring: {e} | Raw: {raw[:100] if 'raw' in dir() else 'N/A'}")
         return {"score": 0, "motivo": "Error al evaluar", "presupuesto_ok": False}
 
 def send_telegram(message):
