@@ -54,61 +54,7 @@ CONDICIONES:
 """
 
 # ─────────────────────────────────────────────
-# FUENTES RSS
-# ─────────────────────────────────────────────
-RSS_FEEDS = {
-    "RemoteOK - Design":    "https://remoteok.com/remote-design-jobs.rss",
-    "RemoteOK - Frontend":  "https://remoteok.com/remote-front-end-jobs.rss",
-    "RemoteOK - Marketing": "https://remoteok.com/remote-marketing-jobs.rss",
-    "RemoteOK - SEO":       "https://remoteok.com/remote-seo-jobs.rss",
-    "Workana - Diseño":     "https://www.workana.com/jobs/rss?category=design-multimedia",
-    "Workana - Web":        "https://www.workana.com/jobs/rss?category=web-programming",
-    "Workana - Marketing":  "https://www.workana.com/jobs/rss?category=sales-marketing",
-    "Dribbble Jobs":        "https://dribbble.com/jobs.rss",
-    "Authentic Jobs":       "https://authenticjobs.com/feed/",
-    "Jobspresso":           "https://jobspresso.co/feed/",
-    "Smashing Magazine":    "https://www.smashingmagazine.com/jobs/feed/",
-    "Coroflot":             "https://www.coroflot.com/jobs/rss",
-}
-
-# ─────────────────────────────────────────────
-# FREELANCER.COM API (sin key)
-# ─────────────────────────────────────────────
-def fetch_freelancer_api():
-    jobs = []
-    queries = ["web design", "wordpress", "seo", "frontend", "ui ux", "landing page"]
-    for query in queries:
-        try:
-            url = "https://www.freelancer.com/api/projects/0.1/projects/active/"
-            params = {
-                "query": query,
-                "limit": 10,
-                "sort_field": "time_updated",
-                "job_details": True,
-            }
-            headers = {"freelancer-oauth-v1": ""}
-            r = requests.get(url, params=params, headers=headers, timeout=10)
-            data = r.json()
-            projects = data.get("result", {}).get("projects", [])
-            for p in projects:
-                budget = p.get("budget", {})
-                min_b  = budget.get("minimum", 0) or 0
-                max_b  = budget.get("maximum", 0) or 0
-                jobs.append({
-                    "source":  f"Freelancer - {query}",
-                    "title":   p.get("title", "Sin título"),
-                    "link":    f"https://www.freelancer.com/projects/{p.get('seo_url', '')}",
-                    "summary": p.get("description", "")[:800],
-                    "id":      str(p.get("id", "")),
-                    "budget":  f"USD {int(min_b)}–{int(max_b)}" if max_b else "No especificado",
-                })
-        except Exception as e:
-            print(f"Error Freelancer API ({query}): {e}")
-        time.sleep(1)
-    return jobs
-
-# ─────────────────────────────────────────────
-# HELPERS
+# HELPERS RSS
 # ─────────────────────────────────────────────
 def load_seen():
     if os.path.exists(SEEN_FILE):
@@ -135,9 +81,64 @@ def fetch_rss(feed_name, url):
             })
         return jobs
     except Exception as e:
-        print(f"Error RSS {feed_name}: {e}")
+        print(f"  Error RSS {feed_name}: {e}")
         return []
 
+# ─────────────────────────────────────────────
+# FREELANCER.COM API
+# ─────────────────────────────────────────────
+def fetch_freelancer_api():
+    jobs = []
+    queries = ["web design", "wordpress", "seo", "frontend", "landing page", "ui ux design"]
+    for query in queries:
+        try:
+            url = "https://www.freelancer.com/api/projects/0.1/projects/active/"
+            params = {
+                "query": query,
+                "limit": 10,
+                "sort_field": "time_updated",
+                "job_details": True,
+                "full_description": True,
+            }
+            r = requests.get(url, params=params, timeout=10)
+            data = r.json()
+            result = data.get("result") or {}
+            projects = result.get("projects") or []
+            for p in projects:
+                budget = p.get("budget") or {}
+                min_b = int(budget.get("minimum") or 0)
+                max_b = int(budget.get("maximum") or 0)
+                jobs.append({
+                    "source":  f"Freelancer - {query}",
+                    "title":   p.get("title", "Sin título"),
+                    "link":    f"https://www.freelancer.com/projects/{p.get('seo_url', p.get('id', ''))}",
+                    "summary": p.get("description", "")[:800],
+                    "id":      f"fl_{p.get('id', '')}",
+                    "budget":  f"USD {min_b}–{max_b}" if max_b else "No especificado",
+                })
+        except Exception as e:
+            print(f"  Error Freelancer ({query}): {e}")
+        time.sleep(1)
+    return jobs
+
+# ─────────────────────────────────────────────
+# GURU RSS
+# ─────────────────────────────────────────────
+def fetch_guru_rss():
+    feeds = {
+        "Guru - Web Design":  "https://www.guru.com/jobs/web-design/rss",
+        "Guru - Programming": "https://www.guru.com/jobs/programming-development/rss",
+        "Guru - SEO":         "https://www.guru.com/jobs/online-marketing/rss",
+    }
+    jobs = []
+    for name, url in feeds.items():
+        jobs += fetch_rss(name, url)
+        time.sleep(1)
+    return jobs
+
+# ─────────────────────────────────────────────
+# FILTROS Y SCORING
+# ─────────────────────────────────────────────
 def is_fulltime(title, summary):
     keywords = [
         "full-time", "full time", "permanent", "salary", "benefits",
@@ -188,6 +189,9 @@ Respondé SOLO con este JSON en una línea, sin texto antes ni después, sin bac
         print(f"      ERROR: {e} | raw: {raw[:80]}")
         return {"score": 0, "motivo": "Error", "presupuesto_ok": False, "es_freelance": False}
 
+# ─────────────────────────────────────────────
+# TELEGRAM
+# ─────────────────────────────────────────────
 def send_telegram(message):
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
     payload = {
@@ -200,7 +204,7 @@ def send_telegram(message):
         r = requests.post(url, json=payload, timeout=10)
         r.raise_for_status()
     except Exception as e:
-        print(f"Error Telegram: {e}")
+        print(f"  Error Telegram: {e}")
 
 def format_message(job, evaluation):
     score       = evaluation.get("score", 0)
@@ -226,10 +230,20 @@ def run():
     nuevos = 0
     todos  = []
 
-    # RSS feeds
-    for feed_name, url in RSS_FEEDS.items():
-        todos += fetch_rss(feed_name, url)
+    # Workana — proyectos freelance reales
+    for name, url in {
+        "Workana - Diseño":    "https://www.workana.com/jobs/rss?category=design-multimedia",
+        "Workana - Web":       "https://www.workana.com/jobs/rss?category=web-programming",
+        "Workana - Marketing": "https://www.workana.com/jobs/rss?category=sales-marketing",
+    }.items():
+        todos += fetch_rss(name, url)
         time.sleep(1)
+
+    # Guru — proyectos freelance reales
+    todos += fetch_guru_rss()
+
+    # Freelancer.com API
+    todos += fetch_freelancer_api()
 
     print(f"  Total ofertas encontradas: {len(todos)}")
 
@@ -238,14 +252,12 @@ def run():
             continue
         seen.add(job["id"])
 
-        # Filtro rápido antes de llamar a la API
         if is_fulltime(job["title"], job["summary"]):
             print(f"  [skip] {job['title'][:60]} (full-time detectado)")
             continue
 
         evaluation = score_job(job)
         score      = evaluation.get("score", 0)
-
         print(f"  [{score}/10] {job['title'][:60]}...")
 
         if score >= SCORE_MINIMO:
