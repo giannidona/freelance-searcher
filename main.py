@@ -15,7 +15,7 @@ ANTHROPIC_API_KEY  = os.environ.get("ANTHROPIC_API_KEY", "")
 SEEN_FILE          = "seen_jobs.json"
 CHECK_INTERVAL     = 60 * 60 * 3  # cada 3 horas
 SCORE_MINIMO       = 7
-BUDGET_MINIMO      = 200  # descartar antes de llamar a la API
+BUDGET_MINIMO      = 200
 
 MI_PERFIL = """
 Soy Gianluca Donato, freelancer con base en Buenos Aires, Argentina.
@@ -73,12 +73,12 @@ def fetch_rss(feed_name, url):
         jobs = []
         for entry in feed.entries[:15]:
             jobs.append({
-                "source":  feed_name,
-                "title":   entry.get("title", "Sin título"),
-                "link":    entry.get("link", ""),
-                "summary": entry.get("summary", entry.get("description", ""))[:800],
-                "id":      entry.get("id", entry.get("link", "")),
-                "budget":  "No especificado",
+                "source":     feed_name,
+                "title":      entry.get("title", "Sin título"),
+                "link":       entry.get("link", ""),
+                "summary":    entry.get("summary", entry.get("description", ""))[:800],
+                "id":         entry.get("id", entry.get("link", "")),
+                "budget":     "No especificado",
                 "budget_max": 0,
             })
         return jobs
@@ -91,30 +91,30 @@ def fetch_rss(feed_name, url):
 # ─────────────────────────────────────────────
 def fetch_freelancer_api():
     jobs = []
-    queries = ["web design", "wordpress", "seo", "frontend", "landing page", "ui ux design"]
+    queries = [
+        "web design", "wordpress", "seo", "frontend",
+        "landing page", "ui ux design", "ecommerce", "shopify"
+    ]
     for query in queries:
         try:
             url = "https://www.freelancer.com/api/projects/0.1/projects/active/"
             params = {
-                "query": query,
-                "limit": 10,
-                "sort_field": "time_updated",
-                "job_details": True,
+                "query":            query,
+                "limit":            10,
+                "sort_field":       "time_updated",
+                "job_details":      True,
                 "full_description": True,
             }
             r = requests.get(url, params=params, timeout=10)
-            data = r.json()
+            data     = r.json()
             result   = data.get("result") or {}
             projects = result.get("projects") or []
             for p in projects:
                 budget = p.get("budget") or {}
                 min_b  = int(budget.get("minimum") or 0)
                 max_b  = int(budget.get("maximum") or 0)
-
-                # Pre-filtro: descartar presupuestos muy bajos
                 if max_b > 0 and max_b < BUDGET_MINIMO:
                     continue
-
                 jobs.append({
                     "source":     f"Freelancer - {query}",
                     "title":      p.get("title", "Sin título"),
@@ -177,7 +177,7 @@ REGLAS DE SCORING:
 - Si es empleo full-time o relación de dependencia: score máximo 3
 - Si el presupuesto máximo es menor a USD 300: score máximo 4
 - Si matchea bien con el perfil y es proyecto freelance puntual: score 7-10
-- Priorizá: diseño web, WordPress, SEO, landing pages, UI/UX, Next.js, ecommerce
+- Priorizá: diseño web, WordPress, SEO, landing pages, UI/UX, Next.js, ecommerce, Shopify
 
 Respondé SOLO con este JSON en una línea, sin texto antes ni después, sin backticks:
 {{"score": 7, "motivo": "ejemplo", "presupuesto_ok": true, "es_freelance": true}}"""
@@ -189,7 +189,7 @@ Respondé SOLO con este JSON en una línea, sin texto antes ni después, sin bac
             max_tokens=150,
             messages=[{"role": "user", "content": prompt}]
         )
-        raw = message.content[0].text.strip()
+        raw   = message.content[0].text.strip()
         start = raw.find("{")
         end   = raw.rfind("}") + 1
         if start == -1 or end == 0:
@@ -245,6 +245,7 @@ def run():
         "Workana - Diseño":    "https://www.workana.com/jobs/rss?category=design-multimedia",
         "Workana - Web":       "https://www.workana.com/jobs/rss?category=web-programming",
         "Workana - Marketing": "https://www.workana.com/jobs/rss?category=sales-marketing",
+        "Workana - IT":        "https://www.workana.com/jobs/rss?category=it-programming",
     }.items():
         todos += fetch_rss(name, url)
         time.sleep(1)
@@ -262,7 +263,6 @@ def run():
             continue
         seen.add(job["id"])
 
-        # Filtro 1: empleos full-time
         if is_fulltime(job["title"], job["summary"]):
             print(f"  [skip] {job['title'][:60]} (full-time)")
             continue
