@@ -178,14 +178,15 @@ Respondé SOLO con este JSON en una línea, sin texto antes ni después, sin bac
             messages=[{"role": "user", "content": prompt}]
         )
         raw = message.content[0].text.strip()
+        print(f"      RAW: {raw[:120]}")
         start = raw.find("{")
         end   = raw.rfind("}") + 1
         if start == -1 or end == 0:
-            return {"score": 0, "motivo": "Sin respuesta JSON", "presupuesto_ok": False, "es_freelance": False}
+            return {"score": 0, "motivo": "Sin JSON", "presupuesto_ok": False, "es_freelance": False}
         return json.loads(raw[start:end])
     except Exception as e:
-        print(f"Error scoring: {e} | Raw: {raw[:100]}")
-        return {"score": 0, "motivo": "Error al evaluar", "presupuesto_ok": False, "es_freelance": False}
+        print(f"      ERROR: {e} | raw: {raw[:80]}")
+        return {"score": 0, "motivo": "Error", "presupuesto_ok": False, "es_freelance": False}
 
 def send_telegram(message):
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
@@ -229,9 +230,6 @@ def run():
     for feed_name, url in RSS_FEEDS.items():
         todos += fetch_rss(feed_name, url)
         time.sleep(1)
-
-    # Freelancer.com API
-    todos += fetch_freelancer_api()
 
     print(f"  Total ofertas encontradas: {len(todos)}")
 
