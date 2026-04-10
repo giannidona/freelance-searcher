@@ -9,13 +9,14 @@ import anthropic
 # ─────────────────────────────────────────────
 # CONFIGURACIÓN
 # ─────────────────────────────────────────────
-TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
-TELEGRAM_CHAT_ID   = os.environ.get("TELEGRAM_CHAT_ID", "")
-ANTHROPIC_API_KEY  = os.environ.get("ANTHROPIC_API_KEY", "")
-SEEN_FILE          = "seen_jobs.json"
-CHECK_INTERVAL     = 60 * 60 * 3  # cada 3 horas
-SCORE_MINIMO       = 7
-BUDGET_MINIMO      = 200
+TELEGRAM_BOT_TOKEN  = os.environ.get("TELEGRAM_BOT_TOKEN", "")
+TELEGRAM_CHAT_ID    = os.environ.get("TELEGRAM_CHAT_ID", "")
+ANTHROPIC_API_KEY   = os.environ.get("ANTHROPIC_API_KEY", "")
+SEEN_FILE           = "seen_jobs.json"
+CHECK_INTERVAL      = 60 * 60 * 3  # cada 3 horas
+SCORE_MINIMO        = 7
+SCORE_PROPUESTA     = 8  # genera propuesta automática si score >= este valor
+BUDGET_MINIMO       = 200
 
 MI_PERFIL = """
 Soy Gianluca Donato, freelancer con base en Buenos Aires, Argentina.
@@ -53,6 +54,8 @@ CONDICIONES:
 - Zona horaria: UTC-3 (Argentina)
 - Trabajo remoto, comunicación clara, entrega en tiempo
 """
+
+MI_PORTFOLIO = "https://gianluca-donato.vercel.app/en"
 
 # ─────────────────────────────────────────────
 # HELPERS
@@ -105,7 +108,7 @@ def fetch_freelancer_api():
                 "job_details":      True,
                 "full_description": True,
             }
-            r = requests.get(url, params=params, timeout=10)
+            r        = requests.get(url, params=params, timeout=10)
             data     = r.json()
             result   = data.get("result") or {}
             projects = result.get("projects") or []
@@ -200,6 +203,56 @@ Respondé SOLO con este JSON en una línea, sin texto antes ni después, sin bac
         return {"score": 0, "motivo": "Error", "presupuesto_ok": False, "es_freelance": False}
 
 # ─────────────────────────────────────────────
+# GENERADOR DE PROPUESTA
+# ─────────────────────────────────────────────
+def generate_proposal(job):
+    client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+
+    # Detectar idioma del proyecto
+    summary_lower = job['summary'].lower()
+    title_lower   = job['title'].lower()
+    is_spanish    = any(w in summary_lower + title_lower for w in [
+        "necesito", "quiero", "busco", "desarrollar", "diseño", "página",
+        "sitio", "tienda", "proyecto", "trabajo", "empresa"
+    ])
+    idioma = "español" if is_spanish else "inglés"
+
+    prompt = f"""Sos Gianluca Donato, freelancer especializado en diseño y desarrollo web.
+Escribí una propuesta corta y personalizada para este proyecto en {idioma}.
+
+PERFIL DE GIANLUCA:
+{MI_PERFIL}
+
+PROYECTO:
+Título: {job['title']}
+Presupuesto: {job.get('budget', 'No especificado')}
+Descripción: {job['summary']}
+
+REGLAS PARA LA PROPUESTA:
+- Máximo 5 líneas, directa y sin relleno
+- Primera línea: demostrar que leíste el proyecto (mencioná algo específico)
+- Segunda línea: mencionar UN proyecto real similar de tu portfolio
+- Tercera línea: decir qué harías concretamente (2-3 puntos específicos)
+- Cuarta línea: tiempo estimado y precio aproximado si el presupuesto lo permite
+- Última línea: una pregunta que abra la conversación
+- NO uses saludos genéricos como "Hi, I'm a developer with X years..."
+- NO incluyas el link del portfolio en el texto, va separado
+- Tono: profesional pero directo, como hablaría una persona real
+
+Respondé SOLO con el texto de la propuesta, sin explicaciones ni formato extra."""
+
+    try:
+        message = client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=300,
+            messages=[{"role": "user", "content": prompt}]
+        )
+        return message.content[0].text.strip()
+    except Exception as e:
+        print(f"      ERROR propuesta: {e}")
+        return None
+
+# ─────────────────────────────────────────────
 # TELEGRAM
 # ─────────────────────────────────────────────
 def send_telegram(message):
@@ -216,20 +269,32 @@ def send_telegram(message):
     except Exception as e:
         print(f"  Error Telegram: {e}")
 
-def format_message(job, evaluation):
+def format_message(job, evaluation, proposal=None):
     score       = evaluation.get("score", 0)
     motivo      = evaluation.get("motivo", "")
     estrellas   = "⭐" * min(score, 5)
     presupuesto = "✅ Presupuesto ok" if evaluation.get("presupuesto_ok") else "⚠️ Verificar presupuesto"
     budget_str  = f"\n💰 {job['budget']}" if job.get("budget") and job["budget"] != "No especificado" else ""
 
-    return f"""{estrellas} *Score {score}/10*
+    msg = f"""{estrellas} *Score {score}/10*
 📌 *{job['title']}*
 🌐 {job['source']}{budget_str}
 💬 _{motivo}_
 {presupuesto}
 
 🔗 [Ver oferta]({job['link']})""".strip()
+
+    if proposal:
+        msg += f"""
+
+━━━━━━━━━━━━━━━━━━━
+✍️ *Propuesta sugerida:*
+
+{proposal}
+
+🌐 {MI_PORTFOLIO}"""
+
+    return msg
 
 # ─────────────────────────────────────────────
 # LOOP PRINCIPAL
@@ -240,7 +305,7 @@ def run():
     nuevos = 0
     todos  = []
 
-    # Workana — proyectos freelance reales
+    # Workana
     for name, url in {
         "Workana - Diseño":    "https://www.workana.com/jobs/rss?category=design-multimedia",
         "Workana - Web":       "https://www.workana.com/jobs/rss?category=web-programming",
@@ -250,7 +315,7 @@ def run():
         todos += fetch_rss(name, url)
         time.sleep(1)
 
-    # Guru — proyectos freelance reales
+    # Guru
     todos += fetch_guru_rss()
 
     # Freelancer.com API
@@ -272,7 +337,12 @@ def run():
         print(f"  [{score}/10] {job['title'][:60]}...")
 
         if score >= SCORE_MINIMO:
-            msg = format_message(job, evaluation)
+            proposal = None
+            if score >= SCORE_PROPUESTA:
+                print(f"      → Generando propuesta...")
+                proposal = generate_proposal(job)
+
+            msg = format_message(job, evaluation, proposal)
             send_telegram(msg)
             nuevos += 1
             time.sleep(1)
