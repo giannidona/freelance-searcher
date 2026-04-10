@@ -14,7 +14,8 @@ TELEGRAM_CHAT_ID   = os.environ.get("TELEGRAM_CHAT_ID", "")
 ANTHROPIC_API_KEY  = os.environ.get("ANTHROPIC_API_KEY", "")
 SEEN_FILE          = "seen_jobs.json"
 CHECK_INTERVAL     = 60 * 60 * 3  # cada 3 horas
-SCORE_MINIMO       = 6
+SCORE_MINIMO       = 7
+BUDGET_MINIMO      = 200  # descartar antes de llamar a la API
 
 MI_PERFIL = """
 Soy Gianluca Donato, freelancer con base en Buenos Aires, Argentina.
@@ -54,7 +55,7 @@ CONDICIONES:
 """
 
 # ─────────────────────────────────────────────
-# HELPERS RSS
+# HELPERS
 # ─────────────────────────────────────────────
 def load_seen():
     if os.path.exists(SEEN_FILE):
@@ -78,6 +79,7 @@ def fetch_rss(feed_name, url):
                 "summary": entry.get("summary", entry.get("description", ""))[:800],
                 "id":      entry.get("id", entry.get("link", "")),
                 "budget":  "No especificado",
+                "budget_max": 0,
             })
         return jobs
     except Exception as e:
@@ -102,19 +104,25 @@ def fetch_freelancer_api():
             }
             r = requests.get(url, params=params, timeout=10)
             data = r.json()
-            result = data.get("result") or {}
+            result   = data.get("result") or {}
             projects = result.get("projects") or []
             for p in projects:
                 budget = p.get("budget") or {}
-                min_b = int(budget.get("minimum") or 0)
-                max_b = int(budget.get("maximum") or 0)
+                min_b  = int(budget.get("minimum") or 0)
+                max_b  = int(budget.get("maximum") or 0)
+
+                # Pre-filtro: descartar presupuestos muy bajos
+                if max_b > 0 and max_b < BUDGET_MINIMO:
+                    continue
+
                 jobs.append({
-                    "source":  f"Freelancer - {query}",
-                    "title":   p.get("title", "Sin título"),
-                    "link":    f"https://www.freelancer.com/projects/{p.get('seo_url', p.get('id', ''))}",
-                    "summary": p.get("description", "")[:800],
-                    "id":      f"fl_{p.get('id', '')}",
-                    "budget":  f"USD {min_b}–{max_b}" if max_b else "No especificado",
+                    "source":     f"Freelancer - {query}",
+                    "title":      p.get("title", "Sin título"),
+                    "link":       f"https://www.freelancer.com/projects/{p.get('seo_url', p.get('id', ''))}",
+                    "summary":    p.get("description", "")[:800],
+                    "id":         f"fl_{p.get('id', '')}",
+                    "budget":     f"USD {min_b}–{max_b}" if max_b else "No especificado",
+                    "budget_max": max_b,
                 })
         except Exception as e:
             print(f"  Error Freelancer ({query}): {e}")
@@ -137,7 +145,7 @@ def fetch_guru_rss():
     return jobs
 
 # ─────────────────────────────────────────────
-# FILTROS Y SCORING
+# FILTROS
 # ─────────────────────────────────────────────
 def is_fulltime(title, summary):
     keywords = [
@@ -149,6 +157,9 @@ def is_fulltime(title, summary):
     text = (title + " " + summary).lower()
     return any(k in text for k in keywords)
 
+# ─────────────────────────────────────────────
+# SCORING CON IA
+# ─────────────────────────────────────────────
 def score_job(job):
     client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
     prompt = f"""Evaluá si esta oferta es un PROYECTO FREELANCE relevante para el siguiente perfil.
@@ -163,13 +174,13 @@ Presupuesto: {job.get('budget', 'No especificado')}
 Descripción: {job['summary']}
 
 REGLAS DE SCORING:
-- Si la oferta es un empleo full-time o relación de dependencia: score máximo 3
-- Si el presupuesto es menor a USD 300 o muy bajo: score máximo 4
-- Si matchea bien el perfil y es proyecto freelance puntual: score 7-10
-- Priorizá proyectos de diseño web, WordPress, SEO, landing pages, UI/UX, frontend
+- Si es empleo full-time o relación de dependencia: score máximo 3
+- Si el presupuesto máximo es menor a USD 300: score máximo 4
+- Si matchea bien con el perfil y es proyecto freelance puntual: score 7-10
+- Priorizá: diseño web, WordPress, SEO, landing pages, UI/UX, Next.js, ecommerce
 
 Respondé SOLO con este JSON en una línea, sin texto antes ni después, sin backticks:
-{{"score": 7, "motivo": "ejemplo de motivo", "presupuesto_ok": true, "es_freelance": true}}"""
+{{"score": 7, "motivo": "ejemplo", "presupuesto_ok": true, "es_freelance": true}}"""
 
     raw = ""
     try:
@@ -179,14 +190,13 @@ Respondé SOLO con este JSON en una línea, sin texto antes ni después, sin bac
             messages=[{"role": "user", "content": prompt}]
         )
         raw = message.content[0].text.strip()
-        print(f"      RAW: {raw[:120]}")
         start = raw.find("{")
         end   = raw.rfind("}") + 1
         if start == -1 or end == 0:
             return {"score": 0, "motivo": "Sin JSON", "presupuesto_ok": False, "es_freelance": False}
         return json.loads(raw[start:end])
     except Exception as e:
-        print(f"      ERROR: {e} | raw: {raw[:80]}")
+        print(f"      ERROR scoring: {e} | raw: {raw[:80]}")
         return {"score": 0, "motivo": "Error", "presupuesto_ok": False, "es_freelance": False}
 
 # ─────────────────────────────────────────────
@@ -252,8 +262,9 @@ def run():
             continue
         seen.add(job["id"])
 
+        # Filtro 1: empleos full-time
         if is_fulltime(job["title"], job["summary"]):
-            print(f"  [skip] {job['title'][:60]} (full-time detectado)")
+            print(f"  [skip] {job['title'][:60]} (full-time)")
             continue
 
         evaluation = score_job(job)
